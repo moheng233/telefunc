@@ -121,6 +121,11 @@ export const headings: HeadingDefinition[] = [
     url: '/file-upload',
   },
   {
+    level: 2,
+    title: 'SSE',
+    url: '/sse'
+  },
+  {
     level: 1,
     title: 'API',
     titleEmoji: 'gear',
@@ -133,6 +138,15 @@ export const headings: HeadingDefinition[] = [
     level: 2,
     title: '`getContext()`',
     url: '/getContext',
+  },
+  {
+    level: 4,
+    title: 'util'
+  },
+  {
+    level: 2,
+    title: '`new SSEMessageEmit()`',
+    url: '/SSEMessageEmit'
   },
   {
     level: 4,
