@@ -3,6 +3,7 @@ export { makeHttpRequest }
 import { parse } from '@brillout/json-serializer/parse'
 import { assert, assertUsage, isObject, objectAssign } from '../utils'
 import { callOnAbortListeners } from './onAbort'
+import { createSSETransformStream } from './sse'
 
 const method = 'POST'
 const STATUS_CODE_SUCCESS = 200
@@ -37,9 +38,15 @@ async function makeHttpRequest(callContext: {
   const statusCode = response.status
 
   if (statusCode === STATUS_CODE_SUCCESS) {
-    const { ret } = await parseResponseBody(response, callContext)
-    const telefunctionReturn = ret
-    return { telefunctionReturn }
+    if (response.headers.get('content-type')?.startsWith('text/event-stream')) {
+      return {
+        telefunctionReturn: response.body!.pipeThrough(createSSETransformStream()),
+      }
+    } else {
+      const { ret } = await parseResponseBody(response, callContext)
+      const telefunctionReturn = ret
+      return { telefunctionReturn }
+    }
   } else if (statusCode === STATUS_CODE_ABORT) {
     const { ret } = await parseResponseBody(response, callContext)
     const abortValue = ret

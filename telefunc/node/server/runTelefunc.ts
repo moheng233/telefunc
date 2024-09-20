@@ -1,5 +1,5 @@
 export { runTelefunc }
-export type { HttpResponse }
+export type { HttpResponse, HttpSSEResponse }
 
 import { assert, objectAssign, isProduction } from '../utils'
 import { Telefunc } from './getContext'
@@ -22,6 +22,19 @@ type HttpResponse = {
   body: string
   /** HTTP Response Header `Content-Type` */
   contentType: 'text/plain'
+  /** HTTP Response Header `ETag` */
+  etag: string | null
+  /** Error thrown by your telefunction */
+  err?: unknown
+}
+
+type HttpSSEResponse = {
+  /** HTTP Response Status Code */
+  statusCode: 200 | 403 | 500 | 400
+  /** HTTP Response Body */
+  body: ReadableStream<string>
+  /** HTTP Response Header `Content-Type` */
+  contentType: 'text/event-stream'
   /** HTTP Response Header `ETag` */
   etag: string | null
   /** Error thrown by your telefunction */
@@ -52,7 +65,7 @@ const invalidRequest = {
   etag: null,
 }
 
-async function runTelefunc(runContext: Parameters<typeof runTelefunc_>[0]): Promise<HttpResponse> {
+async function runTelefunc(runContext: Parameters<typeof runTelefunc_>[0]): Promise<HttpResponse | HttpSSEResponse> {
   try {
     return await runTelefunc_(runContext)
   } catch (err: unknown) {
@@ -70,7 +83,7 @@ async function runTelefunc_(httpRequest: {
   method: string
   body: unknown
   context?: Telefunc.Context
-}): Promise<HttpResponse> {
+}): Promise<HttpResponse | HttpSSEResponse> {
   const runContext = {}
   {
     // TODO: remove? Since `serverConfig` is global I don't think we need to set it to `runContext`, see for example https://github.com/brillout/telefunc/commit/5e3367d2d463b72e805e75ddfc68ef7f177a35c0
@@ -142,10 +155,11 @@ async function runTelefunc_(httpRequest: {
 
   {
     assert(runContext.isValidRequest)
-    const { telefunctionReturn, telefunctionAborted, telefunctionHasErrored, telefunctionError } =
+    const { telefunctionReturn, telefunctionIsSSE, telefunctionAborted, telefunctionHasErrored, telefunctionError } =
       await executeTelefunction(runContext)
     objectAssign(runContext, {
       telefunctionReturn,
+      telefunctionIsSSE,
       telefunctionHasErrored,
       telefunctionAborted,
       telefunctionError,
@@ -156,21 +170,22 @@ async function runTelefunc_(httpRequest: {
     throw runContext.telefunctionError
   }
 
-  {
-    const httpResponseBody = serializeTelefunctionResult(runContext)
-    objectAssign(runContext, { httpResponseBody })
-  }
-
   // {
   //   const httpResponseEtag = await getEtag(runContext)
   //   objectAssign(runContext, { httpResponseEtag })
   // }
 
-  return {
+  return runContext.telefunctionIsSSE ? {
     statusCode: runContext.telefunctionAborted ? abortedRequestStatusCode : 200,
-    body: runContext.httpResponseBody,
+    body: runContext.telefunctionReturn as ReadableStream<string>,
+    contentType: 'text/event-stream',
+    // etag: runContext.httpResponseEtag,
+    etag: null,
+  } : {
+    statusCode: runContext.telefunctionAborted ? abortedRequestStatusCode : 200,
+    body: serializeTelefunctionResult(runContext),
     contentType: 'text/plain',
     // etag: runContext.httpResponseEtag,
     etag: null,
-  }
+  };
 }

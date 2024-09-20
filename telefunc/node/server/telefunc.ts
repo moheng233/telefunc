@@ -1,6 +1,6 @@
 export { telefunc }
 
-import { runTelefunc, HttpResponse } from './runTelefunc'
+import { runTelefunc, HttpResponse, HttpSSEResponse } from './runTelefunc'
 import { Telefunc } from './getContext'
 import { assertUsage, hasProp, isObject } from '../utils'
 
@@ -16,7 +16,7 @@ async function telefunc(httpRequest: {
   body: string
   /** The context object, see https://telefunc.com/getContext  */
   context?: Telefunc.Context
-}): Promise<HttpResponse> {
+}): Promise<HttpResponse | HttpSSEResponse> {
   assertHttpRequest(httpRequest, arguments.length)
   const httpResponse = await runTelefunc(httpRequest)
   return httpResponse

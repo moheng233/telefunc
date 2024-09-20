@@ -1,9 +1,12 @@
 export { executeTelefunction }
 
+import { stringify } from '@brillout/json-serializer/stringify'
+
 import { isAbort, Abort } from '../Abort'
 import { restoreContext, Telefunc } from '../getContext'
 import type { Telefunction } from '../types'
-import { assertUsage, isPromise } from '../../utils'
+import { assertUsage, isPromise, SSEMessage } from '../../utils'
+import { formatSSEMessage } from '../sse'
 
 async function executeTelefunction(runContext: {
   telefunction: Telefunction
@@ -45,6 +48,7 @@ async function executeTelefunction(runContext: {
     onError(err)
   }
 
+  let telefunctionIsSSE = false
   if (!telefunctionHasErrored && !telefunctionAborted) {
     assertUsage(
       isPromise(resultSync),
@@ -52,10 +56,26 @@ async function executeTelefunction(runContext: {
     )
     try {
       telefunctionReturn = await resultSync
+      if (telefunctionReturn instanceof ReadableStream) {
+        telefunctionIsSSE = true
+
+        telefunctionReturn = telefunctionReturn.pipeThrough(
+          new TransformStream<SSEMessage<any>, string>({
+            transform({ data, ...opts }, controller) {
+              controller.enqueue(
+                formatSSEMessage({
+                  data: stringify(data),
+                  ...opts,
+                }),
+              )
+            },
+          }),
+        )
+      }
     } catch (err: unknown) {
       onError(err)
     }
   }
 
-  return { telefunctionReturn, telefunctionAborted, telefunctionHasErrored, telefunctionError }
+  return { telefunctionReturn, telefunctionIsSSE, telefunctionAborted, telefunctionHasErrored, telefunctionError }
 }
